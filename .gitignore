@@ -1,4 +1,7 @@
 pom.xml
 *jar
+*.iml
+*.ipr
+*.iws
 lib
 classes

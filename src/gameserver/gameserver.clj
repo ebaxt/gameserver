@@ -5,7 +5,7 @@
 (def players (ref {}))
 (def last-call (ref {}))
 (def score (ref {}))
-(def tools #(:stone :paper :sissors))
+(def tools #{:stone :paper :sissors})
 
 (defn- get-unique-player-name [name]
   (if (@players name)
@@ -20,12 +20,23 @@
     (binding [*out* (get-in player [1 :out])]
       (println (str message player)) (flush))))
 
+(declare wait)
+(declare select)
+(declare evaluate)
+
+(defn simulate-game [player state & r]
+  (case state
+    :select-move (select player)
+    :wait (wait player #(= (count @last-call) 2) #(simulate-game player :evaluate))
+    :evaluate (evaluate player)
+    ))
+
 (defn execute [command player]
   (str player ":" command))
 
 (defn validate-input [valid-inputs input]
-  (if (contains? valid-inputs input)
-    input
+  (if (contains? valid-inputs (keyword input))
+    (keyword input)
     (do (println ":invalid-input")
       (flush)
       (recur valid-inputs (read-line)))))
@@ -34,25 +45,26 @@
   (println :select) (flush)
   (let [tool (validate-input tools (read-line))]
     (dosync
-      last-call assoc player tool)
-    (simulate-game player :evaluate)))
+      (alter last-call assoc player tool))
+    (simulate-game player :wait)))
 
 (defn wait [player pred next]
   (if (pred)
     (next)
     (recur player pred next)))
 
-(defn evaluate [player]
-  (if )
-  )
-
-(defn simulate-game [player state & r]
-  (case state
-    :select (select player)
-    :wait (wait player #(= (count @last-call) 2) #(simulate-game player :evaluate))
-    :evaluate (evaluate player)
+(defn evaluate-round [player last-call]
+  (let [oponentMove (first (dissoc last-call player))
+        playerMove (vector player (last-call player))]
+    (str oponentMove playerMove)
     ))
 
+(defn evaluate [player]
+  (let [roundStatus (evaluate-round player @last-call)]
+    (println roundStatus) (flush)
+    )
+  ;{Erik :winner :oponentsMove :stone}
+  )
 
 (defn wait-for-enough-players []
   (while (< (count @players) 2)
@@ -67,7 +79,7 @@
     (let [player (get-unique-player-name (read-line))]
       (dosync
         (alter players assoc player {:in *in* :out *out*}))
-      (wait-for-enough-players) (simulate-game player :start)))))
+      (wait-for-enough-players) (simulate-game player :select-move)))))
 
 
 (defn -main
