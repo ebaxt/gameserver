@@ -5,7 +5,8 @@
 (def players (ref {}))
 (def last-call (ref {}))
 (def score (ref {}))
-(def tools #{:stone :paper :sissors})
+(def tools #{:rock :paper :scissors})
+(def rules {:rock :scissors :scissors :paper :paper :rock})
 
 (defn- get-unique-player-name [name]
   (if (@players name)
@@ -14,25 +15,35 @@
       (recur (read-line)))
     name))
 
-
 (defn send-to-players [message players]
   (doseq [player players]
     (binding [*out* (get-in player [1 :out])]
       (println (str message player)) (flush))))
 
-(declare wait)
 (declare select)
 (declare evaluate)
+(declare report-and-clear)
+(declare restart)
 
 (defn simulate-game [player state & r]
   (case state
     :select-move (select player)
-    :wait (wait player #(= (count @last-call) 2) #(simulate-game player :evaluate))
+    :wait (do (while (< (count @last-call) 2)) (simulate-game player :evaluate))
     :evaluate (evaluate player)
+    :report-and-clear (report-and-clear player r)
+    :restart (restart player)
     ))
 
-(defn execute [command player]
-  (str player ":" command))
+(defn report-and-clear [player [[result _]]]
+  (dosync (alter last-call dissoc player))
+  (if (= result :winner)
+    (dosync
+      (alter score assoc player (inc (@score player)))))
+  (simulate-game player :restart))
+
+(defn restart [player]
+  (while (not (empty? @last-call)))
+  (simulate-game player :select-move))
 
 (defn validate-input [valid-inputs input]
   (if (contains? valid-inputs (keyword input))
@@ -48,23 +59,26 @@
       (alter last-call assoc player tool))
     (simulate-game player :wait)))
 
-(defn wait [player pred next]
-  (if (pred)
-    (next)
-    (recur player pred next)))
+(defn winner? [playerMove oponentMove]
+  (if (= playerMove oponentMove)
+    :tie
+    (if (= (rules playerMove) oponentMove)
+      :win
+      :loose)))
 
 (defn evaluate-round [player last-call]
   (let [oponentMove (first (dissoc last-call player))
-        playerMove (vector player (last-call player))]
-    (str oponentMove playerMove)
-    ))
+        playerMove (vector player (last-call player))
+        player-wins (winner? (playerMove 1) (oponentMove 1))]
+    (case player-wins
+      :win [:winner (second oponentMove)]
+      :loose [:looser (second oponentMove)]
+      :tie [:tie (second oponentMove)])))
 
 (defn evaluate [player]
   (let [roundStatus (evaluate-round player @last-call)]
     (println roundStatus) (flush)
-    )
-  ;{Erik :winner :oponentsMove :stone}
-  )
+    (simulate-game player :report-and-clear roundStatus)))
 
 (defn wait-for-enough-players []
   (while (< (count @players) 2)
@@ -78,7 +92,8 @@
     (print "\nEnter player name: ") (flush)
     (let [player (get-unique-player-name (read-line))]
       (dosync
-        (alter players assoc player {:in *in* :out *out*}))
+        (alter players assoc player {:in *in* :out *out*})
+        (alter score assoc player 0))
       (wait-for-enough-players) (simulate-game player :select-move)))))
 
 
