@@ -4,9 +4,9 @@
     [clojure.contrib.server-socket :only (create-server connection-count close-server)]
     [clojure.tools.logging :only (info)]))
 
-(def players (ref {}))
-(def last-call (ref {}))
-(def score (ref {}))
+(def players (atom {}))
+(def last-call (atom {}))
+(def score (atom {}))
 (def tools #{:rock :paper :scissors})
 (def rules {:rock :scissors :scissors :paper :paper :rock})
 
@@ -38,15 +38,18 @@
     ))
 
 (defn report-and-clear [player [[result _]]]
-  (dosync (alter last-call dissoc player))
+  (info @last-call)
+  (if (@last-call :clear)
+    (swap! last-call {})
+    (swap! last-call assoc :clear true))
   (if (= result :winner)
-    (dosync
-      (alter score assoc player (inc (@score player)))))
+    (swap! score assoc player (inc (@score player))))
   (simulate-game player :restart))
 
 (defn restart [player]
-  (while (not (empty? @last-call)))
-  (simulate-game player :select-move))
+  (if (empty? @last-call)
+    (simulate-game player :select-move)
+    (do (Thread/sleep 10) (recur player))))
 
 (defn validate-input [valid-inputs input]
   (if (contains? valid-inputs (keyword input))
@@ -58,8 +61,7 @@
 (defn select [player]
   (println :select) (flush)
   (let [tool (validate-input tools (read-line))]
-    (dosync
-      (alter last-call assoc player tool))
+    (swap! last-call assoc player tool)
     (simulate-game player :wait)))
 
 (defn winner? [playerMove oponentMove]
@@ -70,7 +72,7 @@
       :loose)))
 
 (defn evaluate-round [player last-call]
-  (let [oponentMove (first (dissoc last-call player))
+  (let [oponentMove (first (dissoc (dissoc last-call player) :clear))
         playerMove (vector player (last-call player))
         player-wins (winner? (playerMove 1) (oponentMove 1))]
     (case player-wins
@@ -94,9 +96,8 @@
             *out* (writer out)]
     (println "Enter player name: ") (flush)
     (let [player (get-unique-player-name (read-line))]
-      (dosync
-        (alter players assoc player {:in *in* :out *out*})
-        (alter score assoc player 0))
+        (swap! players assoc player {:in *in* :out *out*})
+        (swap! score assoc player 0)
       (wait-for-enough-players) (simulate-game player :select-move)))))
 
 
