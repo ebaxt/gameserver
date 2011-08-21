@@ -2,7 +2,9 @@
   :description "Simple gameserver to play Rock-Paper-Scissors"
   :dependencies [[org.clojure/clojure "1.2.1"]
                  [org.clojure/clojure-contrib "1.2.0"]
-                 [midje "1.1.1"]]
+                 [midje "1.1.1"]
+                 [org.clojure/tools.logging "0.1.2"]
+                 [log4j "1.2.16"]]
 
   :repositories {"stuartsierra-releases" "http://stuartsierra.com/maven2"}
 
@@ -12,4 +14,4 @@
 
   :lazytest-path ["src" "test"]
 
-  :main gameserver.core)
+  :main gameserver.gameserver)

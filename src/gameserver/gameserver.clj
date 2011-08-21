@@ -1,6 +1,8 @@
 (ns gameserver.gameserver
-  (:use [clojure.java.io :only [reader writer]]
-    [clojure.contrib.server-socket :only [create-server connection-count close-server]]))
+  (:gen-class)
+  (:use [clojure.java.io :only (reader writer)]
+    [clojure.contrib.server-socket :only (create-server connection-count close-server)]
+    [clojure.tools.logging :only (info)]))
 
 (def players (ref {}))
 (def last-call (ref {}))
@@ -10,7 +12,7 @@
 
 (defn- get-unique-player-name [name]
   (if (@players name)
-    (do (print "That name is in use; try again: ")
+    (do (println "That name is already in use, try again: ")
       (flush)
       (recur (read-line)))
     name))
@@ -26,6 +28,7 @@
 (declare restart)
 
 (defn simulate-game [player state & r]
+  (info (str player " " state))
   (case state
     :select-move (select player)
     :wait (do (while (< (count @last-call) 2)) (simulate-game player :evaluate))
@@ -89,7 +92,7 @@
 (def register-players (fn [in out]
   (binding [*in* (reader in)
             *out* (writer out)]
-    (print "\nEnter player name: ") (flush)
+    (println "Enter player name: ") (flush)
     (let [player (get-unique-player-name (read-line))]
       (dosync
         (alter players assoc player {:in *in* :out *out*})
