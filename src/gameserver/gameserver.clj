@@ -1,12 +1,12 @@
 (ns gameserver.gameserver
-  (:gen-class)
   (:use [clojure.java.io :only (reader writer)]
     [clojure.contrib.server-socket :only (create-server connection-count close-server)]
     [clojure.tools.logging :only (info)]))
 
 (def players (atom {}))
-(def last-call (atom {}))
-(def score (atom {}))
+
+(def *oponent*)
+(def *player*)
 (def tools #{:rock :paper :scissors})
 (def rules {:rock :scissors :scissors :paper :paper :rock})
 
@@ -17,39 +17,35 @@
       (recur (read-line)))
     name))
 
-(defn send-to-players [message players]
-  (doseq [player players]
-    (binding [*out* (get-in player [1 :out])]
-      (println (str message player)) (flush))))
+(defn oponent [player]
+  (first (filter #(not= % player) (keys @players))))
 
-(declare select)
-(declare evaluate)
-(declare report-and-clear)
-(declare restart)
+(defn find-result [player-move oponent-move]
+  (if (= player-move oponent-move)
+    :tie
+    (if (= (rules player-move) oponent-move)
+      :winner
+      :looser)))
 
-(defn simulate-game [player state & r]
-  (info (str player " " state))
-  (case state
-    :select-move (select player)
-    :wait (do (while (< (count @last-call) 2)) (simulate-game player :evaluate))
-    :evaluate (evaluate player)
-    :report-and-clear (report-and-clear player r)
-    :restart (restart player)
-    ))
+(declare make-selection)
 
-(defn report-and-clear [player [[result _]]]
-  (info @last-call)
-  (if (@last-call :clear)
-    (swap! last-call {})
-    (swap! last-call assoc :clear true))
-  (if (= result :winner)
-    (swap! score assoc player (inc (@score player))))
-  (simulate-game player :restart))
+(defn clear-and-restart []
+  (while (not (get-in @players [*oponent* :reported])))
+  (swap! players assoc-in [*oponent* :reported] false)
+  (swap! players assoc-in [*oponent* :selection] nil)
+  (swap! players assoc-in [*oponent* :result] nil))
 
-(defn restart [player]
-  (if (empty? @last-call)
-    (simulate-game player :select-move)
-    (do (Thread/sleep 10) (recur player))))
+(defn evaluate []
+  (while (not (get-in @players [*oponent* :selection])))
+  (let [player-move (get-in @players [*player* :selection])
+        oponent-move (get-in @players [*oponent* :selection])
+        result (find-result player-move oponent-move)]
+    (swap! players assoc-in [*player* :result] result)
+    (swap! players assoc-in [*player* :reported] true)
+    (println [result oponent-move]) (flush)
+    (if (= result :winner)
+      (swap! players update-in [*player* :score] inc)))
+  (clear-and-restart))
 
 (defn validate-input [valid-inputs input]
   (if (contains? valid-inputs (keyword input))
@@ -58,51 +54,31 @@
       (flush)
       (recur valid-inputs (read-line)))))
 
-(defn select [player]
-  (println :select) (flush)
+(defn make-selection [rounds-left]
+  (while (get-in @players [*player* :selection]))
+  (println ":select") (flush)
   (let [tool (validate-input tools (read-line))]
-    (swap! last-call assoc player tool)
-    (simulate-game player :wait)))
+    (swap! players assoc-in [*player* :selection] tool))
+  (evaluate)
+  (dec rounds-left))
 
-(defn winner? [playerMove oponentMove]
-  (if (= playerMove oponentMove)
-    :tie
-    (if (= (rules playerMove) oponentMove)
-      :win
-      :loose)))
-
-(defn evaluate-round [player last-call]
-  (let [oponentMove (first (dissoc (dissoc last-call player) :clear))
-        playerMove (vector player (last-call player))
-        player-wins (winner? (playerMove 1) (oponentMove 1))]
-    (case player-wins
-      :win [:winner (second oponentMove)]
-      :loose [:looser (second oponentMove)]
-      :tie [:tie (second oponentMove)])))
-
-(defn evaluate [player]
-  (let [roundStatus (evaluate-round player @last-call)]
-    (println roundStatus) (flush)
-    (simulate-game player :report-and-clear roundStatus)))
-
-(defn wait-for-enough-players []
+(defn wait-for-other-player [player]
   (while (< (count @players) 2)
     (println ":waiting")
     (flush)
-    (Thread/sleep 2000)))
+    (Thread/sleep 2000))
+  (binding [*oponent* (oponent player)
+            *player* player]
+    (loop [rounds-left 100000]
+      (when (pos? rounds-left)
+        (recur (make-selection rounds-left))))))
 
 (def register-players (fn [in out]
   (binding [*in* (reader in)
             *out* (writer out)]
     (println "Enter player name: ") (flush)
     (let [player (get-unique-player-name (read-line))]
-        (swap! players assoc player {:in *in* :out *out*})
-        (swap! score assoc player 0)
-      (wait-for-enough-players) (simulate-game player :select-move)))))
+      (swap! players assoc player {:selection nil :result nil :score 0 :reported false})
+      (wait-for-other-player player)))))
 
-
-(defn -main
-  ([port]
-    (def server (create-server (Integer. port) register-players))
-    (println "Launching game server on port" port))
-  ([] (-main 3333)))
+(def server (create-server 3333 register-players))
