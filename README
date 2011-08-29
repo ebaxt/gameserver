@@ -1,13 +1,14 @@
-# gameserver
+# rock-paper-scissors gameserver
 
-FIXME: write description
+Simple socket based gameserver
 
 ## Usage
 
-FIXME: write
+lein uberjar
+java -jar xxx.jar
 
 ## License
 
-Copyright (C) 2010 FIXME
+Copyright (C) 2011 Erik Bakstad
 
 Distributed under the Eclipse Public License, the same as Clojure.
