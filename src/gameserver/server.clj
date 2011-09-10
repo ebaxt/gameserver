@@ -1,4 +1,4 @@
-(ns gameserver.gameserver
+(ns gameserver.server
   (:use [clojure.java.io :only (reader writer)]
     [clojure.contrib.server-socket :only (create-server connection-count close-server)]
     [clojure.tools.logging :only (info)]))
@@ -85,4 +85,6 @@
       (play-rounds 100 player)))
   (println @players))
 
-(def server (create-server 3333 register-players))
+(defn start-server [rounds callback]
+  (create-server 3333 register-players)
+  (callback))

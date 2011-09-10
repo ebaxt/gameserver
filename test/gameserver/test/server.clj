@@ -1,5 +1,5 @@
-(ns gameserver.test.gameserver
-  (:use gameserver.gameserver)
+(ns gameserver.test.server
+  (:use gameserver.server)
   (:use clojure.test midje.sweet))
 
 (deftest server

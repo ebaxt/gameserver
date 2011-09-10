@@ -4,7 +4,8 @@
                  [org.clojure/clojure-contrib "1.2.0"]
                  [midje "1.1.1"]
                  [org.clojure/tools.logging "0.1.2"]
-                 [log4j "1.2.16"]]
+                 [log4j "1.2.16"]
+                 [seesaw "1.2.0"]]
 
   :repositories {"stuartsierra-releases" "http://stuartsierra.com/maven2"}
 
@@ -14,4 +15,4 @@
 
   :lazytest-path ["src" "test"]
 
-  :main gameserver.gameserver)
+  :main gameserver.main)
