@@ -1,17 +1,37 @@
 (ns gameserver.ui
   (:use seesaw.core)
-  (:require [gameserver.server :as server]))
+  (:require
+    [gameserver.server :as server]
+    [seesaw.bind :as b]))
 
 (def status (label "Ready"))
 
-(def p1 {:name (label "Player 1") :score (label "")})
-(def p2 {:name (label "Player 1") :score (label "")})
+(def p1 (label :text "Player1" :halign :center :font {:style :bold}))
+(def p2 (label :text "Player2" :halign :center :font {:style :bold}))
 
+(def score1 (label :text 0 :halign :center :font {:style :bold :size 30}))
+(def score2 (label :text 0 :halign :center :font {:style :bold :size 30}))
 
-(defn watcher [akey aref old-val new-val]
-  (let [pname (first (keys new-val))]
-    (text! (:name p1) pname)
-    (text! (:score p1) 0)))
+(defn load-players [m]
+  (if (= "Player1" (text p1))
+    (let [players (keys m)
+          pl1 (first players)
+          pl2 (second players)]
+      (text! p1 pl1)
+      (text! p2 pl2)
+      (text! status "Running"))))
+
+(defn update-ui [m]
+  (let [pl1 (get m (text p1))
+        pl2 (get m (text p2))]
+    (text! score1 (:score pl1))
+    (text! score2 (:score pl2))))
+
+(defn watcher [_ _ _ new-val]
+  (if (= 2 (count new-val))
+    (do
+      (load-players new-val)
+      (update-ui new-val))))
 
 (defn start-server-handler [event]
   (let [rounds status]
@@ -39,9 +59,12 @@
           :west
           (vertical-panel
             :border 30
-            :items [(:name p1) (:score p1)])
+            :items [p1 score1])
           :east
           (vertical-panel
             :border 30
-            :items [(:name p2) (:score p2)])
+            :items [p2 score2])
           :south status)))))
+
+(defn start []
+  (show! (app)))
